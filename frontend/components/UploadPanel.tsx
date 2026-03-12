@@ -1,10 +1,10 @@
-"use client";
+"use client"
 
-import React, { useState, useCallback, useRef } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import React, { useState, useCallback, useRef } from "react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import {
   IconUpload,
   IconFile,
@@ -12,19 +12,19 @@ import {
   IconCheck,
   IconX,
   IconLoader2,
-} from "@tabler/icons-react";
-import { getAuthHeaders } from "@/lib/auth";
+} from "@tabler/icons-react"
+import { getAuthHeaders } from "@/lib/auth"
 
 interface IndexedFile {
-  file_path: string;
-  language: string;
+  file_path: string
+  language: string
 }
 
 interface UploadPanelProps {
-  files: IndexedFile[];
-  onFilesChange: () => void;
-  onFileSelect: (file: IndexedFile) => void;
-  selectedFile: string | null;
+  files: IndexedFile[]
+  onFilesChange: () => void
+  onFileSelect: (file: IndexedFile) => void
+  selectedFile: string | null
 }
 
 const LANG_COLORS: Record<string, string> = {
@@ -44,19 +44,19 @@ const LANG_COLORS: Record<string, string> = {
   json: "bg-green-500/20 text-green-400",
   yaml: "bg-pink-500/20 text-pink-400",
   text: "bg-gray-500/20 text-gray-400",
-};
-
-function langColor(lang: string) {
-  return LANG_COLORS[lang] || "bg-gray-500/20 text-gray-400";
 }
 
-type UploadStatus = "idle" | "uploading" | "done" | "error";
+function langColor(lang: string) {
+  return LANG_COLORS[lang] || "bg-gray-500/20 text-gray-400"
+}
+
+type UploadStatus = "idle" | "uploading" | "done" | "error"
 
 interface FileUploadState {
-  name: string;
-  status: UploadStatus;
-  chunks?: number;
-  error?: string;
+  name: string
+  status: UploadStatus
+  chunks?: number
+  error?: string
 }
 
 export default function UploadPanel({
@@ -65,75 +65,83 @@ export default function UploadPanel({
   onFileSelect,
   selectedFile,
 }: UploadPanelProps) {
-  const [uploads, setUploads] = useState<FileUploadState[]>([]);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploads, setUploads] = useState<FileUploadState[]>([])
+  const [isDragOver, setIsDragOver] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const uploadFile = useCallback(
     async (file: File) => {
-      const name = file.name;
+      const name = file.name
       setUploads((prev) => [
         ...prev,
         { name, status: "uploading" as UploadStatus },
-      ]);
+      ])
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
+        const formData = new FormData()
+        formData.append("file", file)
 
         const res = await fetch("/api/ingest", {
           method: "POST",
           headers: { ...getAuthHeaders() },
           body: formData,
-        });
-        const json = await res.json();
+        })
+        const json = await res.json()
 
         if (json.success) {
           setUploads((prev) =>
             prev.map((u) =>
               u.name === name
-                ? { ...u, status: "done" as UploadStatus, chunks: json.data?.chunks_stored || 0 }
-                : u,
-            ),
-          );
-          onFilesChange();
+                ? {
+                    ...u,
+                    status: "done" as UploadStatus,
+                    chunks: json.data?.chunks_stored || 0,
+                  }
+                : u
+            )
+          )
+          onFilesChange()
         } else {
           setUploads((prev) =>
             prev.map((u) =>
               u.name === name
-                ? { ...u, status: "error" as UploadStatus, error: json.error || "Upload failed" }
-                : u,
-            ),
-          );
+                ? {
+                    ...u,
+                    status: "error" as UploadStatus,
+                    error: json.error || "Upload failed",
+                  }
+                : u
+            )
+          )
         }
       } catch (e) {
         setUploads((prev) =>
           prev.map((u) =>
             u.name === name
               ? { ...u, status: "error" as UploadStatus, error: String(e) }
-              : u,
-          ),
-        );
+              : u
+          )
+        )
       }
     },
-    [onFilesChange],
-  );
+    [onFilesChange]
+  )
 
   const handleFiles = useCallback(
     (fileList: FileList) => {
-      Array.from(fileList).forEach(uploadFile);
+      Array.from(fileList).forEach(uploadFile)
     },
-    [uploadFile],
-  );
+    [uploadFile]
+  )
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+      e.preventDefault()
+      setIsDragOver(false)
+      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
     },
-    [handleFiles],
-  );
+    [handleFiles]
+  )
 
   return (
     <div className="flex h-full flex-col">
@@ -159,8 +167,8 @@ export default function UploadPanel({
               : "border-cm-border hover:border-cm-text-muted"
           }`}
           onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
+            e.preventDefault()
+            setIsDragOver(true)
           }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={onDrop}
@@ -197,7 +205,10 @@ export default function UploadPanel({
                 className="flex items-center gap-2 rounded-md bg-cm-card px-2.5 py-1.5"
               >
                 {u.status === "uploading" && (
-                  <IconLoader2 size={12} className="animate-spin text-cm-accent" />
+                  <IconLoader2
+                    size={12}
+                    className="animate-spin text-cm-accent"
+                  />
                 )}
                 {u.status === "done" && (
                   <IconCheck size={12} className="text-cm-green" />
@@ -223,7 +234,7 @@ export default function UploadPanel({
 
       {/* Indexed Files */}
       <div className="flex items-center justify-between px-4 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-cm-text-muted">
+        <span className="text-[11px] font-medium tracking-wider text-cm-text-muted uppercase">
           Indexed Files
         </span>
         <Button
@@ -236,7 +247,7 @@ export default function UploadPanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-3 pb-3">
+      <ScrollArea className="h-12 flex-1 px-3 pb-3">
         {files.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <IconFile size={32} className="text-cm-text-muted/30" />
@@ -255,12 +266,14 @@ export default function UploadPanel({
                 className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors ${
                   selectedFile === f.file_path
                     ? "bg-cm-accent/15 text-cm-accent"
-                    : "hover:bg-cm-card text-cm-text-secondary hover:text-cm-text"
+                    : "text-cm-text-secondary hover:bg-cm-card hover:text-cm-text"
                 }`}
                 onClick={() => onFileSelect(f)}
               >
                 <IconFile size={14} className="shrink-0" />
-                <span className="flex-1 truncate text-[11px]">{f.file_path}</span>
+                <span className="flex-1 truncate text-[11px]">
+                  {f.file_path}
+                </span>
                 <Badge
                   variant="secondary"
                   className={`h-4 px-1.5 text-[9px] font-normal ${langColor(f.language)}`}
@@ -273,5 +286,5 @@ export default function UploadPanel({
         )}
       </ScrollArea>
     </div>
-  );
+  )
 }
