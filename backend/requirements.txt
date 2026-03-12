@@ -1,0 +1,28 @@
+# requirements.txt
+
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+
+# Endee vector DB
+endee
+
+# Embeddings
+sentence-transformers
+
+# LLM
+ollama
+
+# Auth
+pymongo
+bcrypt
+pyjwt
+
+# File handling
+pymupdf
+zipfile36
+
+# Utilities
+numpy
+pydantic[email]
