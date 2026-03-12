@@ -1,13 +1,6 @@
 """
 agent.py
 Agentic Q&A pipeline for CodeMind.
-
-Flow:
-  1. Decompose complex question into 3 sub-questions via Ollama
-  2. Run Endee semantic search for each sub-question (filtered by user_id)
-  3. Deduplicate results across all sub-queries
-  4. Synthesize a comprehensive final answer with citations
-  5. Stream each step back to the UI as SSE events
 """
 
 import json
@@ -145,7 +138,6 @@ async def stream_agent_answer(question: str, user_id: str = "") -> AsyncGenerato
         error   — error message
     """
     try:
-        # ── Step 1: Decompose ──────────────────────────────────────────────
         yield f"event: step\ndata: {json.dumps({'step': 1, 'message': 'Decomposing question into sub-queries...', 'status': 'in-progress'})}\n\n"
 
         sub_questions = _decompose_question(question)
@@ -153,7 +145,6 @@ async def stream_agent_answer(question: str, user_id: str = "") -> AsyncGenerato
         yield f"event: step\ndata: {json.dumps({'step': 1, 'message': f'Decomposed into {len(sub_questions)} sub-questions', 'status': 'done'})}\n\n"
         yield f"event: subquestions\ndata: {json.dumps(sub_questions)}\n\n"
 
-        # ── Step 2: Multi-search ───────────────────────────────────────────
         yield f"event: step\ndata: {json.dumps({'step': 2, 'message': f'Searching codebase for {len(sub_questions)} queries...', 'status': 'in-progress'})}\n\n"
 
         chunks = _multi_search(sub_questions, top_k=4, user_id=user_id)
@@ -171,7 +162,6 @@ async def stream_agent_answer(question: str, user_id: str = "") -> AsyncGenerato
         ]
         yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
 
-        # ── Step 3: Synthesize ─────────────────────────────────────────────
         yield f"event: step\ndata: {json.dumps({'step': 3, 'message': 'Synthesizing comprehensive answer...', 'status': 'in-progress'})}\n\n"
 
         prompt = _build_synthesis_prompt(question, sub_questions, chunks)

@@ -231,7 +231,7 @@ export default function AgentPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 px-4" viewportRef={scrollRef}>
         <div className="mx-auto max-w-3xl space-y-6 py-6">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">

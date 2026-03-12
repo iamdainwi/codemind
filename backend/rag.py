@@ -1,12 +1,6 @@
 """
 rag.py
 RAG pipeline for CodeMind.
-
-Flow:
-  1. Embed the user's question
-  2. Search Endee for top-k relevant code chunks (filtered by user_id)
-  3. Build a code-aware prompt with retrieved context
-  4. Stream the response from Ollama token by token
 """
 
 from typing import AsyncGenerator, List, Dict
@@ -76,12 +70,9 @@ async def stream_rag_answer(question: str, top_k: int = 6, user_id: str = "") ->
     import json
 
     try:
-        # Step 1: Embed question
         yield f"event: status\ndata: {json.dumps('Searching codebase...')}\n\n"
         model = _get_model()
         query_vector = model.encode([question]).tolist()[0]
-
-        # Step 2: Search Endee (filtered by user_id)
         hits = endee.search(query_vector, top_k=top_k, user_id=user_id)
 
         if not hits:
@@ -92,11 +83,9 @@ async def stream_rag_answer(question: str, top_k: int = 6, user_id: str = "") ->
         sources = [{"file_path": h["file_path"], "score": h["score"], "language": h["language"]} for h in hits]
         yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
 
-        # Step 3: Build prompt
         yield f"event: status\ndata: {json.dumps('Generating answer...')}\n\n"
         prompt = _build_rag_prompt(question, hits)
 
-        # Step 4: Stream Ollama
         client = ollama_client.Client(host=OLLAMA_HOST)
         stream = client.chat(
             model=OLLAMA_MODEL,

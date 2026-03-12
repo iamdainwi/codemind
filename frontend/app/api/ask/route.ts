@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(body),
   });
 
-  // Stream the SSE response back
   return new Response(res.body, {
     status: res.status,
     headers: {

@@ -1,145 +1,150 @@
-"use client";
+"use client"
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { IconSend2, IconLoader2, IconUser, IconBrain } from "@tabler/icons-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { getAuthHeaders } from "@/lib/auth";
+import React, { useState, useRef, useEffect, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import {
+  IconSend2,
+  IconLoader2,
+  IconUser,
+  IconBrain,
+} from "@tabler/icons-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
+import { getAuthHeaders } from "@/lib/auth"
 
 interface Source {
-  file_path: string;
-  score: number;
-  language: string;
+  file_path: string
+  score: number
+  language: string
 }
 
 interface Message {
-  role: "user" | "assistant";
-  content: string;
-  sources?: Source[];
-  isStreaming?: boolean;
+  role: "user" | "assistant"
+  content: string
+  sources?: Source[]
+  isStreaming?: boolean
 }
 
 export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    scrollToBottom()
+  }, [messages, scrollToBottom])
 
   const handleSubmit = async () => {
-    const q = input.trim();
-    if (!q || isLoading) return;
+    const q = input.trim()
+    if (!q || isLoading) return
 
-    setInput("");
-    setIsLoading(true);
+    setInput("")
+    setIsLoading(true)
 
-    const userMsg: Message = { role: "user", content: q };
-    setMessages((prev) => [...prev, userMsg]);
+    const userMsg: Message = { role: "user", content: q }
+    setMessages((prev) => [...prev, userMsg])
 
-    let content = "";
-    let sources: Source[] = [];
+    let content = ""
+    let sources: Source[] = []
 
     setMessages((prev) => [
       ...prev,
       { role: "assistant", content: "", sources: [], isStreaming: true },
-    ]);
+    ])
 
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ question: q, top_k: 6 }),
-      });
+      })
 
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+      const reader = res.body?.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
 
       if (reader) {
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+          const { done, value } = await reader.read()
+          if (done) break
 
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop() || "";
+          buffer += decoder.decode(value, { stream: true })
+          const parts = buffer.split("\n\n")
+          buffer = parts.pop() || ""
 
           for (const part of parts) {
-            const lines = part.split("\n");
-            let eventType = "";
-            let eventData = "";
+            const lines = part.split("\n")
+            let eventType = ""
+            let eventData = ""
 
             for (const line of lines) {
-              if (line.startsWith("event: ")) eventType = line.slice(7).trim();
-              if (line.startsWith("data: ")) eventData = line.slice(6);
+              if (line.startsWith("event: ")) eventType = line.slice(7).trim()
+              if (line.startsWith("data: ")) eventData = line.slice(6)
             }
 
-            if (!eventData) continue;
+            if (!eventData) continue
 
             try {
-              const parsed = JSON.parse(eventData);
+              const parsed = JSON.parse(eventData)
 
               if (eventType === "token") {
-                content += parsed;
+                content += parsed
                 setMessages((prev) => {
-                  const copy = [...prev];
+                  const copy = [...prev]
                   copy[copy.length - 1] = {
                     role: "assistant",
                     content,
                     sources,
                     isStreaming: true,
-                  };
-                  return copy;
-                });
+                  }
+                  return copy
+                })
               } else if (eventType === "sources") {
-                sources = parsed;
+                sources = parsed
                 setMessages((prev) => {
-                  const copy = [...prev];
+                  const copy = [...prev]
                   copy[copy.length - 1] = {
                     ...copy[copy.length - 1],
                     sources,
-                  };
-                  return copy;
-                });
+                  }
+                  return copy
+                })
               } else if (eventType === "done") {
                 setMessages((prev) => {
-                  const copy = [...prev];
+                  const copy = [...prev]
                   copy[copy.length - 1] = {
                     role: "assistant",
                     content,
                     sources,
                     isStreaming: false,
-                  };
-                  return copy;
-                });
+                  }
+                  return copy
+                })
               } else if (eventType === "error") {
-                content = `Error: ${parsed}`;
+                content = `Error: ${parsed}`
                 setMessages((prev) => {
-                  const copy = [...prev];
+                  const copy = [...prev]
                   copy[copy.length - 1] = {
                     role: "assistant",
                     content,
                     sources,
                     isStreaming: false,
-                  };
-                  return copy;
-                });
+                  }
+                  return copy
+                })
               }
             } catch {
               // skip
@@ -150,41 +155,41 @@ export default function ChatPanel() {
 
       // Final state
       setMessages((prev) => {
-        const copy = [...prev];
+        const copy = [...prev]
         copy[copy.length - 1] = {
           role: "assistant",
           content: content || "No response received.",
           sources,
           isStreaming: false,
-        };
-        return copy;
-      });
+        }
+        return copy
+      })
     } catch (e) {
       setMessages((prev) => {
-        const copy = [...prev];
+        const copy = [...prev]
         copy[copy.length - 1] = {
           role: "assistant",
           content: `Error: ${e}`,
           isStreaming: false,
-        };
-        return copy;
-      });
+        }
+        return copy
+      })
     }
 
-    setIsLoading(false);
-  };
+    setIsLoading(false)
+  }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
+      e.preventDefault()
+      handleSubmit()
     }
-  };
+  }
 
   return (
     <div className="flex h-full flex-col">
       {/* Messages */}
-      <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+      <ScrollArea className="h-72 flex-1 px-4" viewportRef={scrollRef}>
         <div className="mx-auto max-w-3xl space-y-6 py-6">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -195,8 +200,8 @@ export default function ChatPanel() {
                 Ask your codebase
               </h3>
               <p className="mt-1.5 max-w-sm text-xs text-cm-text-muted">
-                Upload code files, then ask questions in plain English.
-                Answers are grounded in your actual source code with citations.
+                Upload code files, then ask questions in plain English. Answers
+                are grounded in your actual source code with citations.
               </p>
             </div>
           )}
@@ -217,7 +222,7 @@ export default function ChatPanel() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-cm-text-muted">
+                  <span className="text-[11px] font-medium tracking-wider text-cm-text-muted uppercase">
                     {msg.role === "user" ? "You" : "CodeMind"}
                   </span>
 
@@ -229,8 +234,8 @@ export default function ChatPanel() {
                         remarkPlugins={[remarkGfm]}
                         components={{
                           code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(className || "");
-                            const codeStr = String(children).replace(/\n$/, "");
+                            const match = /language-(\w+)/.exec(className || "")
+                            const codeStr = String(children).replace(/\n$/, "")
                             if (match) {
                               return (
                                 <div className="my-2 overflow-hidden rounded-md border border-cm-border">
@@ -253,7 +258,7 @@ export default function ChatPanel() {
                                     {codeStr}
                                   </SyntaxHighlighter>
                                 </div>
-                              );
+                              )
                             }
                             return (
                               <code
@@ -262,21 +267,21 @@ export default function ChatPanel() {
                               >
                                 {children}
                               </code>
-                            );
+                            )
                           },
                           p({ children }) {
                             return (
                               <p className="mb-2 text-sm leading-relaxed text-cm-text-secondary">
                                 {children}
                               </p>
-                            );
+                            )
                           },
                           li({ children }) {
                             return (
                               <li className="text-sm text-cm-text-secondary">
                                 {children}
                               </li>
-                            );
+                            )
                           },
                         }}
                       >
@@ -325,9 +330,9 @@ export default function ChatPanel() {
               className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-cm-text placeholder:text-cm-text-muted focus:outline-none"
               style={{ maxHeight: "120px" }}
               onInput={(e) => {
-                const el = e.target as HTMLTextAreaElement;
-                el.style.height = "auto";
-                el.style.height = Math.min(el.scrollHeight, 120) + "px";
+                const el = e.target as HTMLTextAreaElement
+                el.style.height = "auto"
+                el.style.height = Math.min(el.scrollHeight, 120) + "px"
               }}
             />
             <Button
@@ -349,5 +354,5 @@ export default function ChatPanel() {
         </div>
       </div>
     </div>
-  );
+  )
 }

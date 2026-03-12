@@ -1,10 +1,6 @@
 """
 ingestion.py
 Parses code files, chunks them by lines, embeds them, and stores in Endee.
-
-Supports:
-  - Individual files (any supported extension)
-  - ZIP archives (extracts all supported files automatically)
 """
 
 import io
@@ -140,7 +136,7 @@ def _ingest_single_file(
 
 def ingest_file_bytes(filename: str, data: bytes, user_id: str = "") -> Dict:
     """
-    Ingest a single file from raw bytes (e.g. from FastAPI UploadFile).
+    Ingest a single file from raw bytes.
 
     Returns:
         {files_indexed, chunks_stored, files: [{file_path, language, chunks}]}
@@ -168,7 +164,7 @@ def ingest_file_bytes(filename: str, data: bytes, user_id: str = "") -> Dict:
 def ingest_zip_bytes(data: bytes, user_id: str = "") -> Dict:
     """
     Ingest a ZIP archive from raw bytes.
-    Extracts all files with supported extensions and indexes them.
+    Extracts supported extensions and indexes them.
 
     Returns:
         {files_indexed, chunks_stored, files: [...], skipped: [...]}
