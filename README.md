@@ -3,6 +3,9 @@
 > Upload your codebase, ask questions in plain English, and get cited answers.  
 > Built with **Endee** vector database at its core.
 
+![CodeMind Dashboard](./frontend/public/Screenshot%202026-03-12%20at%2022.02.19.png)
+![CodeMind Agentic Q&A](./frontend/public/Screenshot%202026-03-12%20at%2022.23.04.png)
+
 ---
 
 ## ✨ Features
@@ -22,49 +25,57 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        FRONTEND                                 │
-│                   Next.js 15 + Tailwind + shadcn/ui             │
+│          Next.js 15 (App Router) + Tailwind + shadcn/ui         │
 │                                                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ Upload Panel  │  │   Tab Bar    │  │   File Card          │  │
-│  │ • Drag & Drop │  │ Ask|Search|  │  │ • Recommendations    │  │
-│  │ • File List   │  │ Agent       │  │ • Similar files      │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
+│  ┌───────────────────────────┐  ┌────────────────────────────┐  │
+│  │     Public Routes         │  │     Protected Routes       │  │
+│  │  / (Landing Page)         │  │  /dashboard                │  │
+│  │  /login (Auth Forms)      │  │  Requires valid JWT token  │  │
+│  └─────────────┬─────────────┘  └─────────────┬──────────────┘  │
+│                │ AuthContext (State & Token)  │                 │
+│                └──────────────────────────────┘                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │ Upload Panel │  │   Tab Bar    │  │   File Card          │   │
+│  │ • Drag & Drop│  │ Ask|Search|  │  │ • Recommendations    │   │
+│  │ • File List  │  │ Agent        │  │ • Similar files      │   │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘   │
 │         │                 │                      │              │
 │         └─────────┬───────┴──────────────────────┘              │
-│                   │  Next.js API Routes (proxy)                 │
+│                   │  Next.js API Routes (proxy w/ Auth)         │
 └───────────────────┼─────────────────────────────────────────────┘
-                    │ HTTP / SSE
+                    │ HTTP / SSE (Bearer Token)
 ┌───────────────────┼─────────────────────────────────────────────┐
-│                   │          BACKEND                             │
-│                   │     FastAPI (Python)                         │
-│                   │                                              │
+│                   │          BACKEND                            │
+│                   │     FastAPI (Python)                        │
+│                   │                                             │
 │  ┌────────────────▼──────────────────────────────────────────┐  │
 │  │ main.py — Routes                                          │  │
+│  │  POST /auth/register POST /auth/login  GET /auth/me       │  │
+│  │  ──────────────────────────────────────────────────────── │  │
 │  │  POST /ingest  POST /ask  POST /agent                     │  │
 │  │  GET  /search  GET  /recommend  GET  /files               │  │
-│  └──┬────────────────┬────────────────┬──────────────────────┘  │
-│     │                │                │                          │
-│  ┌──▼──────┐  ┌──────▼──────┐  ┌─────▼──────┐                  │
-│  │ingestion│  │   rag.py    │  │  agent.py   │                  │
-│  │  .py    │  │ Embed→Search│  │ Decompose→  │                  │
-│  │ Chunk→  │  │  →Prompt→   │  │ MultiSearch│                  │
-│  │ Embed→  │  │  Ollama     │  │ →Synthesize│                  │
-│  │ Store   │  └──────┬──────┘  └─────┬──────┘                  │
-│  └──┬──────┘         │               │                          │
-│     │                │               │                          │
-│  ┌──▼────────────────▼───────────────▼──────────────────────┐  │
-│  │         endee_client.py (SDK Wrapper)                     │  │
-│  │  ensure_index() │ upsert_chunks() │ search()             │  │
-│  │  get_file_chunks() │ recommend() │ list_files()          │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
-│                         │                                       │
-└─────────────────────────┼───────────────────────────────────────┘
-                          │ HTTP
-                ┌─────────▼─────────┐      ┌──────────────────┐
-                │   Endee Vector DB │      │  Ollama (local)  │
-                │   localhost:8080  │      │  localhost:11434  │
-                │   384-dim cosine  │      │  codellama/llama3│
-                └───────────────────┘      └──────────────────┘
+│  └──┬────────────────┬────────────────┬──────────────────┬───┘  │
+│     │                │                │                  │      │
+│  ┌──▼──────┐  ┌──────▼──────┐  ┌─────▼──────┐      ┌─────▼───┐  │
+│  │ingestion│  │   rag.py    │  │  agent.py  │      │ auth.py │  │
+│  │  .py    │  │ Embed→Search│  │ Decompose→ │      │ JWT Gen │  │
+│  │ Chunk→  │  │  →Prompt→   │  │ MultiSearch│      │ Bcrypt  │  │
+│  │ Embed→  │  │  Ollama     │  │ →Synthesize│      │ Verify  │  │
+│  │ Store   │  └──────┬──────┘  └─────┬──────┘      └─────┬───┘  │
+│  └──┬──────┘         │               │                   │      │
+│     │                │               │      ┌────────────▼────┐ │
+│  ┌──▼────────────────▼───────────────▼──┐   │     MongoDB     │ │
+│  │   endee_client.py (SDK Wrapper)      │   │ • User profiles │ │
+│  │   (Filters data by user_id)          │   │ • Hashed PWs    │ │
+│  └───────────────────┬──────────────────┘   └─────────────────┘ │
+│                      │                                          │
+└──────────────────────┼──────────────────────────────────────────┘
+                       │ HTTP
+             ┌─────────▼─────────┐      ┌──────────────────┐
+             │   Endee Vector DB │      │  Ollama (local)  │
+             │   localhost:8080  │      │  localhost:11434 │
+             │   384-dim cosine  │      │  codellama/llama3│
+             └───────────────────┘      └──────────────────┘
 ```
 
 ---
@@ -90,10 +101,38 @@
 - **Node.js 18+** — for frontend
 - **Ollama** — for local LLM
 
-### 1. Start Endee
+### Environment Variables (.env)
+
+Before starting, create a `.env` file in the `backend/` directory:
+
+```env
+# MongoDB & Auth
+MONGO_URL=mongodb://localhost:27017
+MONGO_DB=codemind
+JWT_SECRET=your-super-secret-key-change-me
+JWT_ALGORITHM=HS256
+JWT_EXPIRY_HOURS=72
+
+# Endee Vector DB
+ENDEE_HOST=http://localhost:8080
+ENDEE_AUTH_TOKEN=
+ENDEE_INDEX_NAME=codemind
+ENDEE_DIM=384
+
+# LLM & Embeddings
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=codellama
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+```
+
+### 1. Start Endee & MongoDB
 
 ```bash
+# Start Endee Server
 docker run -p 8080:8080 -v endee-data:/data endeeio/endee-server:latest
+
+# Start MongoDB (if not installed locally)
+docker run -p 27017:27017 -d mongo
 ```
 
 ### 2. Start Ollama
@@ -107,7 +146,13 @@ ollama serve             # if not already running
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+
+# On Mac/Linux:
+source .venv/bin/activate
+# On Windows:
+# .\venv\Scripts\activate
+
 pip install -r requirements.txt
 
 # Verify Endee connection
@@ -126,6 +171,13 @@ pnpm run dev
 ```
 
 Open **http://localhost:3000**
+
+### Troubleshooting
+
+- **Endee not reachable (`ConnectionRefusedError`)**: Ensure Docker is running and the Endee container is started on port 8080.
+- **Ollama model not found**: Run `ollama pull codellama` to download the model before starting the server. If using a different model, update `OLLAMA_MODEL` in your `.env`.
+- **MongoDB connection failed**: Ensure MongoDB is running locally on port 27017, or update `MONGO_URL` to point to a cloud cluster like MongoDB Atlas.
+- **Port conflicts**: If ports 3000 (frontend), 8000 (backend), or 8080 (Endee) are in use, stop conflicting services or update your environment variables and API proxy targets accordingly.
 
 ---
 
@@ -178,18 +230,23 @@ Complex question → Ollama **decomposes** into 3 sub-questions → `index.query
 
 ## 📝 API Reference
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/ingest` | Upload code file or ZIP |
-| `POST` | `/ask` | RAG Q&A (SSE stream) |
-| `POST` | `/agent` | Agentic Q&A (SSE stream) |
-| `GET` | `/search?q=...&top_k=8` | Semantic search |
-| `GET` | `/recommend?file_path=...&top_k=4` | File recommendations |
-| `GET` | `/files` | List all indexed files |
-| `GET` | `/health` | Health check |
+*(Data routes require a valid JWT token in the `Authorization: Bearer <token>` header)*
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/auth/register` | Create user account | No |
+| `POST` | `/auth/login` | Login, get JWT | No |
+| `GET` | `/auth/me` | Get current user info | Yes |
+| `POST` | `/ingest` | Upload code file or ZIP | Yes |
+| `POST` | `/ask` | RAG Q&A (SSE stream) | Yes |
+| `POST` | `/agent` | Agentic Q&A (SSE stream) | Yes |
+| `GET` | `/search?q=...&top_k=8` | Semantic search | Yes |
+| `GET` | `/recommend?file_path=...&top_k=4` | File recommendations | Yes |
+| `GET` | `/files` | List all indexed files | Yes |
+| `GET` | `/health` | Health check | No |
 
 All responses follow: `{"success": true, "data": {...}, "error": null}`
 
 ---
 
-Demonstrating Semantic Search, RAG, Recommendations, and Agentic AI, all powered by Endee vector database.
+Demonstrating Semantic Search, RAG, Recommendations, and Agentic AI, all powered by the Endee vector database.
