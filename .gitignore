@@ -79,3 +79,5 @@ coverage.xml
 .endee/
 data/
 *.sqlite3
+
+.claude

@@ -16,11 +16,11 @@ Routes:
 """
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from config import logger
+from config import logger, GITHUB_CLIENT_ID, FRONTEND_URL
 from ingestion import ingest_file_bytes, ingest_zip_bytes
 from rag import stream_rag_answer
 from agent import stream_agent_answer
@@ -29,6 +29,13 @@ from auth import (
     RegisterRequest, LoginRequest, AuthResponse, UserOut,
     register_user, login_user, get_user_profile,
     get_current_user,
+    store_github_token, get_github_token, get_github_status,
+    find_or_create_github_user,
+)
+from github import (
+    build_oauth_url, exchange_code, get_github_user,
+    list_repos, ingest_github_repo,
+    make_state_token, decode_state_token,
 )
 
 app = FastAPI(title="CodeMind API", version="2.0.0")
@@ -61,6 +68,10 @@ class AskRequest(BaseModel):
 
 class AgentRequest(BaseModel):
     question: str
+
+class GitHubIngestRequest(BaseModel):
+    full_name: str   # e.g. "owner/repo"
+    branch: str = "main"
 
 
 # ── AUTH ROUTES ───────────────────────────────────────────────────────────────
@@ -231,6 +242,139 @@ async def list_files(user: UserOut = Depends(get_current_user)):
         return ok({"files": files, "count": len(files)})
     except Exception as e:
         logger.error(f"List files error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── GITHUB OAUTH ROUTES ───────────────────────────────────────────────────────
+
+def _require_github_configured():
+    if not GITHUB_CLIENT_ID:
+        raise HTTPException(
+            status_code=503,
+            detail="GitHub OAuth is not configured — set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in .env",
+        )
+
+
+@app.get("/github/login")
+async def github_login():
+    """
+    Return a GitHub OAuth URL for sign-in / sign-up.
+    No existing CodeMind session required — works on the login page.
+    """
+    _require_github_configured()
+    state = make_state_token(flow="login")
+    return ok({"oauth_url": build_oauth_url(state)})
+
+
+@app.get("/github/connect")
+async def github_connect(user: UserOut = Depends(get_current_user)):
+    """
+    Return a GitHub OAuth URL to link GitHub to an existing CodeMind account.
+    Requires an authenticated session.
+    """
+    _require_github_configured()
+    state = make_state_token(flow="connect", user_id=user.id)
+    return ok({"oauth_url": build_oauth_url(state)})
+
+
+@app.get("/github/callback")
+async def github_callback(
+    code: str = Query(...),
+    state: str = Query(...),
+):
+    """
+    Unified GitHub OAuth callback (called by GitHub after the user authorizes).
+
+    Branches on the 'flow' field embedded in the signed state token:
+      • "login"   — sign-in / sign-up: find or create a CodeMind account,
+                    then redirect to /auth/github?cm_token=<jwt> on the frontend.
+      • "connect" — link GitHub to an existing account,
+                    then redirect to /dashboard?github=connected.
+    """
+    state_data = decode_state_token(state)
+    gh_token = await exchange_code(code)
+    gh_user = await get_github_user(gh_token)
+
+    github_id: int = gh_user["id"]
+    github_login: str = gh_user.get("login", "")
+    email: str = gh_user.get("email") or ""
+    name: str = gh_user.get("name") or github_login
+
+    if state_data["flow"] == "login":
+        auth = find_or_create_github_user(
+            github_id=github_id,
+            github_login=github_login,
+            email=email,
+            name=name,
+            github_token=gh_token,
+        )
+        # Pass the CodeMind JWT to the frontend callback page via URL
+        # (HTTPS in production; fine for localhost dev)
+        import urllib.parse
+        user_param = urllib.parse.quote(
+            f'{{"id":"{auth.user.id}","name":"{auth.user.name}","email":"{auth.user.email}"}}'
+        )
+        return RedirectResponse(
+            f"{FRONTEND_URL}/auth/github?cm_token={auth.token}&cm_user={user_param}"
+        )
+
+    # flow == "connect"
+    user_id = state_data.get("uid", "")
+    if not user_id:
+        raise HTTPException(400, "Missing user ID in state — please try connecting again")
+
+    store_github_token(user_id, github_token=gh_token, github_username=github_login)
+    logger.info(f"GitHub linked: user={user_id[:8]}... @{github_login}")
+    return RedirectResponse(f"{FRONTEND_URL}/dashboard?github=connected")
+
+
+@app.get("/github/status")
+async def github_status(user: UserOut = Depends(get_current_user)):
+    """Return whether the current user has a connected GitHub account."""
+    status = get_github_status(user.id)
+    return ok(status)
+
+
+@app.get("/github/repos")
+async def github_repos(user: UserOut = Depends(get_current_user)):
+    """List all GitHub repos accessible to the current user (public + private)."""
+    token = get_github_token(user.id)
+    if not token:
+        raise HTTPException(status_code=400, detail="GitHub account not connected")
+
+    repos = await list_repos(token)
+    return ok({"repos": repos, "count": len(repos)})
+
+
+@app.post("/github/ingest")
+async def github_ingest(
+    request: GitHubIngestRequest,
+    user: UserOut = Depends(get_current_user),
+):
+    """
+    Fetch and index a GitHub repository into Endee.
+    Clones the file tree via the GitHub Contents API (no git clone required).
+    Returns: files_indexed, chunks_stored, files list, skipped list.
+    """
+    token = get_github_token(user.id)
+    if not token:
+        raise HTTPException(status_code=400, detail="GitHub account not connected")
+
+    if not request.full_name.strip():
+        raise HTTPException(status_code=422, detail="full_name is required")
+
+    try:
+        result = await ingest_github_repo(
+            token=token,
+            full_name=request.full_name.strip(),
+            branch=request.branch.strip() or "main",
+            user_id=user.id,
+        )
+        return ok(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"GitHub ingest error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -1,19 +1,21 @@
 "use client"
 
-import React, { useState, useCallback, useRef } from "react"
+import React, { useState, useCallback, useEffect, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
-  IconUpload,
+  IconBrandGithub,
+  IconCheck,
   IconFile,
   IconFolderOpen,
-  IconCheck,
-  IconX,
   IconLoader2,
+  IconUpload,
+  IconX,
 } from "@tabler/icons-react"
 import { getAuthHeaders } from "@/lib/auth"
+import GitHubRepoModal from "@/components/GitHubRepoModal"
 
 interface IndexedFile {
   file_path: string
@@ -59,6 +61,11 @@ interface FileUploadState {
   error?: string
 }
 
+interface GitHubStatus {
+  connected: boolean
+  username: string | null
+}
+
 export default function UploadPanel({
   files,
   onFilesChange,
@@ -68,6 +75,70 @@ export default function UploadPanel({
   const [uploads, setUploads] = useState<FileUploadState[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [githubStatus, setGithubStatus] = useState<GitHubStatus>({ connected: false, username: null })
+  const [githubLoading, setGithubLoading] = useState(false)
+  const [showRepoModal, setShowRepoModal] = useState(false)
+  const [githubBanner, setGithubBanner] = useState(false)
+
+  // Fetch GitHub connection status on mount
+  useEffect(() => {
+    async function fetchGithubStatus() {
+      try {
+        const res = await fetch("/api/github/status", {
+          headers: { ...getAuthHeaders() },
+        })
+        const json = await res.json()
+        if (json.success) setGithubStatus(json.data)
+      } catch {
+        // not critical
+      }
+    }
+    fetchGithubStatus()
+  }, [])
+
+  // Detect ?github=connected after OAuth redirect
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("github") === "connected") {
+      setGithubBanner(true)
+      // Re-fetch status to pick up the new connection
+      async function refetch() {
+        try {
+          const res = await fetch("/api/github/status", { headers: { ...getAuthHeaders() } })
+          const json = await res.json()
+          if (json.success) setGithubStatus(json.data)
+        } catch { /* ignore */ }
+      }
+      refetch()
+      // Clean the URL param without a page reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete("github")
+      window.history.replaceState({}, "", url.toString())
+      // Auto-hide the banner after 4 s
+      const t = setTimeout(() => setGithubBanner(false), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [])
+
+  const handleGithubConnect = useCallback(async () => {
+    setGithubLoading(true)
+    try {
+      const res = await fetch("/api/github/connect", {
+        headers: { ...getAuthHeaders() },
+      })
+      const json = await res.json()
+      if (json.success && json.data?.oauth_url) {
+        window.location.href = json.data.oauth_url
+      } else {
+        console.error("GitHub connect error:", json.error)
+      }
+    } catch (e) {
+      console.error("GitHub connect error:", e)
+    } finally {
+      setGithubLoading(false)
+    }
+  }, [])
 
   const uploadFile = useCallback(
     async (file: File) => {
@@ -195,6 +266,50 @@ export default function UploadPanel({
         </div>
       </div>
 
+      {/* GitHub section */}
+      <div className="px-3 pb-2">
+        {/* Success banner after OAuth redirect */}
+        {githubBanner && (
+          <div className="mb-2 flex items-center gap-2 rounded-md bg-cm-green/10 px-2.5 py-2 text-xs text-cm-green">
+            <IconCheck size={12} />
+            GitHub connected as @{githubStatus.username}
+          </div>
+        )}
+
+        {githubStatus.connected ? (
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 items-center gap-1.5 rounded-md bg-cm-card px-2.5 py-1.5">
+              <IconBrandGithub size={13} className="shrink-0 text-cm-text-muted" />
+              <span className="truncate text-[11px] text-cm-text-secondary">
+                @{githubStatus.username}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              className="h-7 shrink-0 bg-cm-accent px-2.5 text-[11px] hover:bg-cm-accent-dim"
+              onClick={() => setShowRepoModal(true)}
+            >
+              Import repo
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-full gap-1.5 border border-cm-border text-[11px] text-cm-text-muted hover:border-cm-text-muted hover:text-cm-text"
+            onClick={handleGithubConnect}
+            disabled={githubLoading}
+          >
+            {githubLoading ? (
+              <IconLoader2 size={13} className="animate-spin" />
+            ) : (
+              <IconBrandGithub size={13} />
+            )}
+            Connect GitHub for private repos
+          </Button>
+        )}
+      </div>
+
       {/* Upload Progress */}
       {uploads.length > 0 && (
         <div className="px-3 pb-2">
@@ -247,7 +362,17 @@ export default function UploadPanel({
         </Button>
       </div>
 
-      <ScrollArea className="h-12 flex-1 px-3 pb-3">
+      {showRepoModal && (
+        <GitHubRepoModal
+          onClose={() => setShowRepoModal(false)}
+          onIngested={() => {
+            onFilesChange()
+            setShowRepoModal(false)
+          }}
+        />
+      )}
+
+      <ScrollArea className="h-7/12 px-3 pb-3">
         {files.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <IconFile size={32} className="text-cm-text-muted/30" />

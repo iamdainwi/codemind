@@ -23,6 +23,9 @@ pyjwt
 pymupdf
 zipfile36
 
+# GitHub OAuth & HTTP client
+httpx
+
 # Utilities
 numpy
 pydantic[email]

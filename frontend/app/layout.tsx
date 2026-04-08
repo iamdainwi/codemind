@@ -4,6 +4,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider } from "@/lib/auth"
+import { ToastProvider } from "@/components/Toast"
 import { cn } from "@/lib/utils";
 
 const fontSans = Geist({
@@ -32,7 +33,11 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <TooltipProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>
