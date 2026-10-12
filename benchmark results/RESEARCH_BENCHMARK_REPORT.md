@@ -11,7 +11,7 @@ This benchmark rigorously evaluates whether structuring the code retrieval pipel
 
 ### Key Empirical Findings:
 1. **Precision@5 Superiority**: AST chunking achieves **36.0%** Precision@5 compared to **22.7%** for Fixed-Window chunking ($+13.3\%$ relative improvement, $p = 9.6145e-02$).
-2. **Mean Reciprocal Rank (MRR)**: AST chunks place the first relevant code unit significantly higher in the ranking list (**0.717** vs. **0.763**, $p = 4.4757e-01$).
+2. **Mean Reciprocal Rank (MRR)**: The fixed-window baseline retains a marginal MRR advantage over AST chunking (**0.763** vs. **0.717**), though the difference is not statistically significant ($p = 4.4757e-01$). This reflects finer chunk granularity placing partial hits at rank 1 even when the target symbol is incomplete.
 3. **Boundary Integrity**: AST chunks maintain **100.0%** syntactic boundary preservation (0 mid-statement or function truncations), whereas Fixed-Window chunking achieves only **11.7%**, frequently cleaving functions across arbitrary token offsets ($p = 2.3031e-13$).
 4. **Downstream Answer Synthesis (ROUGE-L)**: When context is fed to the local LLM (`gemma4:e2b-mlx`), AST-conditioned prompts achieve an average ROUGE-L F1 score of **0.284** versus **0.273** for Fixed-window prompts ($+1.1\%$).
 5. **Model Calibration & Confidence-Missed Error (CME)**: AST chunking achieves a mean LLM confidence of **4.80 / 5.0** and dramatically suppresses the Confidence-Missed Error rate to **46.7%** compared to **80.0%** for Fixed-Window chunking ($p = 5.5178e-02$).
