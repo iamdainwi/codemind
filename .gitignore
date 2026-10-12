@@ -97,3 +97,6 @@ server/data/uploads/
 coverage/
 *.log
 logs/
+
+paper.tex
+paper.pdf
