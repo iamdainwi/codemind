@@ -41,6 +41,13 @@ class Chunk:
         """Rough token estimate: 1 token ~ 4 characters."""
         return len(self.content) // 4
 
+    @property
+    def qualified_name(self) -> str:
+        """Extract the qualified identifier (e.g. Class.method or function_name)."""
+        if "class_name" in self.metadata and "name" in self.metadata:
+            return f"{self.metadata['class_name']}.{self.metadata['name']}"
+        return self.metadata.get("name", "")
+
 
 class BaseChunker(ABC):
     """Abstract base class for all chunking strategies."""

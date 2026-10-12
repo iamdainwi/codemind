@@ -794,7 +794,20 @@ OLLAMA_AVAILABLE=false
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-### Starting Services (Development Order)
+### Starting Services (Docker Compose — Recommended)
+
+```bash
+# Run all services (MongoDB, ChromaDB, FastAPI backend, Next.js frontend)
+docker compose up --build -d
+
+# View real-time logs
+docker compose logs -f
+
+# Stop all containers
+docker compose down
+```
+
+### Starting Services (Local Bare-Metal Order)
 
 ```bash
 # 1. Start MongoDB

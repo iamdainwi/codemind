@@ -1,8 +1,4 @@
-"""
-core/chroma.py
-ChromaDB embedded client singleton.
-All collections follow the naming convention: repo_{repo_id}_{strategy}
-"""
+from __future__ import annotations
 import logging
 import chromadb
 from chromadb import Collection
@@ -10,15 +6,26 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_client: chromadb.PersistentClient | None = None
+_client: chromadb.api.client.ClientAPI | None = None
 
 
-def get_chroma_client() -> chromadb.PersistentClient:
-    """Return the shared ChromaDB persistent client."""
+def get_chroma_client():
+    """Return the shared ChromaDB client (HTTP or Persistent)."""
     global _client
     if _client is None:
-        _client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
-        logger.info("ChromaDB client created at: %s", settings.CHROMA_PERSIST_DIR)
+        if settings.CHROMA_SERVER_HOST:
+            _client = chromadb.HttpClient(
+                host=settings.CHROMA_SERVER_HOST,
+                port=settings.CHROMA_SERVER_PORT,
+            )
+            logger.info(
+                "ChromaDB HttpClient connected to %s:%s",
+                settings.CHROMA_SERVER_HOST,
+                settings.CHROMA_SERVER_PORT,
+            )
+        else:
+            _client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+            logger.info("ChromaDB PersistentClient created at: %s", settings.CHROMA_PERSIST_DIR)
     return _client
 
 

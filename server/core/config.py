@@ -14,8 +14,10 @@ class Settings(BaseSettings):
     MONGODB_URI: str = "mongodb://localhost:27017"
     MONGODB_DB: str = "codemind"
 
-    # ChromaDB (embedded local file mode)
+    # ChromaDB (embedded local file mode OR remote docker host)
     CHROMA_PERSIST_DIR: str = "./data/chroma"
+    CHROMA_SERVER_HOST: str | None = None
+    CHROMA_SERVER_PORT: int = 8000
 
     # Ollama
     OLLAMA_BASE_URL: str = "http://localhost:11434"

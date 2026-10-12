@@ -1,0 +1,42 @@
+[
+  {
+    "repo_id": "sample_repo_001",
+    "query": "How is DataLoader initialized and what arguments does it accept?",
+    "relevant_chunk_ids": [
+      "dataloader.py::DataLoader.__init__"
+    ],
+    "reference_answer": "DataLoader is initialized with batch_size, shuffle flag, and num_workers. It sets up internal state for batch iteration."
+  },
+  {
+    "repo_id": "sample_repo_001",
+    "query": "How does DataLoader load datasets into memory or batches?",
+    "relevant_chunk_ids": [
+      "dataloader.py::DataLoader.load"
+    ],
+    "reference_answer": "The DataLoader.load method reads items in mini-batches, handles shuffling if enabled, and yields batches of data."
+  },
+  {
+    "repo_id": "sample_repo_001",
+    "query": "What is the forward computation in TransformerBlock?",
+    "relevant_chunk_ids": [
+      "models.py::TransformerBlock.forward"
+    ],
+    "reference_answer": "TransformerBlock.forward performs multi-head self-attention followed by residual connection, layer normalization, and a feed-forward MLP."
+  },
+  {
+    "repo_id": "sample_repo_001",
+    "query": "How is loss calculated during training evaluation?",
+    "relevant_chunk_ids": [
+      "utils.py::calculate_loss"
+    ],
+    "reference_answer": "calculate_loss takes model predictions and ground-truth targets to compute cross-entropy loss with optional label smoothing."
+  },
+  {
+    "repo_id": "sample_repo_001",
+    "query": "How does Trainer execute a training epoch?",
+    "relevant_chunk_ids": [
+      "trainer.py::Trainer.train_epoch"
+    ],
+    "reference_answer": "Trainer.train_epoch iterates through the data loader, performs forward passes, backpropagation, and optimizer step updates."
+  }
+]

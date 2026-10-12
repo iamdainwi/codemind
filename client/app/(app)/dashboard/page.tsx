@@ -1,19 +1,40 @@
 "use client";
+
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { listRepos, uploadRepo, deleteRepo } from "@/lib/api/repos";
 import type { Repo } from "@/types/api";
+import { ZipUploader } from "@/components/upload/ZipUploader";
+import {
+  FolderGit2,
+  MessageSquare,
+  BarChart2,
+  Trash2,
+  Layers,
+  FileCode2,
+  Cpu,
+  Clock,
+  Sparkles,
+  ArrowRight,
+} from "lucide-react";
 
 function StatusBadge({ status }: { status: Repo["status"] }) {
   const map = {
-    ready: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    indexing: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-    pending: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-    error: "bg-red-500/15 text-red-400 border-red-500/30",
+    ready: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    indexing: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    pending: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    error: "bg-red-500/10 text-red-400 border-red-500/20",
   };
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${map[status]}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${status === "indexing" ? "animate-pulse" : ""} bg-current`} />
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-mono font-medium border ${map[status]}`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${
+          status === "indexing" ? "animate-pulse" : ""
+        } bg-current`}
+      />
       {status}
     </span>
   );
@@ -23,7 +44,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [repos, setRepos] = useState<Repo[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fetchRepos = useCallback(async () => {
@@ -33,7 +53,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchRepos();
-    // Poll every 4s for repos that are still indexing
+    // Poll every 3s if any repo is currently indexing
     const interval = setInterval(() => {
       setRepos((prev) => {
         if (prev.some((r) => r.status === "indexing" || r.status === "pending")) {
@@ -41,15 +61,11 @@ export default function DashboardPage() {
         }
         return prev;
       });
-    }, 4000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [fetchRepos]);
 
   async function handleUpload(file: File) {
-    if (!file.name.endsWith(".zip")) {
-      setUploadError("Only .zip files are accepted.");
-      return;
-    }
     setUploadError(null);
     setUploading(true);
     try {
@@ -60,119 +76,222 @@ export default function DashboardPage() {
         setUploadError(res.error?.message ?? "Upload failed.");
       }
     } catch {
-      setUploadError("Upload failed. Is the server running?");
+      setUploadError("Upload failed. Verify backend service is healthy.");
     } finally {
       setUploading(false);
     }
   }
 
   async function handleDelete(repoId: string) {
+    if (!confirm("Are you sure you want to delete this indexed repository?")) return;
     await deleteRepo(repoId);
     setRepos((prev) => prev.filter((r) => r.repo_id !== repoId));
   }
 
+  const totalAstChunks = repos.reduce((acc, r) => acc + (r.chunk_count_ast || 0), 0);
+  const totalFixedChunks = repos.reduce((acc, r) => acc + (r.chunk_count_fixed || 0), 0);
+  const totalFiles = repos.reduce((acc, r) => acc + (r.file_count || 0), 0);
+
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Upload your Python codebase as a ZIP to start asking questions.
-        </p>
+    <div className="p-8 max-w-6xl mx-auto space-y-8">
+      {/* Page Title & Mission */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+            <span>Repository Workspace</span>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 font-mono">
+              AST Dual Indexer
+            </span>
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+            Upload Python source repositories to compare tree-sitter AST syntax chunking against traditional fixed-window baseline chunking in local ChromaDB collections.
+          </p>
+        </div>
+
+        <Link
+          href="/eval"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-card border border-border/80 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors shrink-0 shadow-xs"
+        >
+          <BarChart2 className="size-3.5 text-violet-400" />
+          <span>Evaluation Matrix</span>
+          <ArrowRight className="size-3 text-muted-foreground" />
+        </Link>
       </div>
 
-      {/* Upload zone */}
-      <div
-        id="upload-zone"
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const file = e.dataTransfer.files[0];
-          if (file) handleUpload(file);
-        }}
-        className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-200 ${
-          dragging
-            ? "border-violet-500 bg-violet-500/10"
-            : "border-border hover:border-violet-500/50 hover:bg-muted/30"
-        }`}
-      >
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-500/5 to-cyan-500/5 pointer-events-none" />
-        <div className="text-4xl mb-3">📦</div>
-        <p className="text-sm font-medium text-foreground mb-1">
-          {dragging ? "Drop your ZIP here" : "Drag & drop your Python codebase ZIP"}
-        </p>
-        <p className="text-xs text-muted-foreground mb-4">or click to browse</p>
-        <label
-          htmlFor="file-input"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-cyan-600 text-white text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity"
-        >
-          {uploading ? (
-            <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Uploading…</>
-          ) : (
-            "Choose ZIP File"
-          )}
-        </label>
-        <input
-          id="file-input"
-          type="file"
-          accept=".zip"
-          className="sr-only"
-          disabled={uploading}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleUpload(file);
-            e.target.value = "";
-          }}
+      {/* Bento Metric Summary Tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl border border-border/70 bg-card/40 backdrop-blur-sm space-y-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>Repositories</span>
+            <FolderGit2 className="size-3.5 text-violet-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-foreground">
+            {repos.length}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {repos.filter((r) => r.status === "ready").length} ready for queries
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/70 bg-card/40 backdrop-blur-sm space-y-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>Python Files</span>
+            <FileCode2 className="size-3.5 text-cyan-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-cyan-400">
+            {totalFiles}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Parsed with tree-sitter
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/70 bg-card/40 backdrop-blur-sm space-y-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>AST Semantic Chunks</span>
+            <Cpu className="size-3.5 text-violet-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-violet-400">
+            {totalAstChunks}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Function, class & method units
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/70 bg-card/40 backdrop-blur-sm space-y-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>Fixed Baseline Chunks</span>
+            <Layers className="size-3.5 text-muted-foreground" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-muted-foreground">
+            {totalFixedChunks}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Character window slices
+          </div>
+        </div>
+      </div>
+
+      {/* Upload Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <span>Index New Codebase</span>
+            <span className="size-1.5 rounded-full bg-violet-400" />
+          </h2>
+          <span className="text-[11px] font-mono text-muted-foreground">
+            Automatic background indexing
+          </span>
+        </div>
+
+        <ZipUploader
+          onUpload={handleUpload}
+          uploading={uploading}
         />
         {uploadError && (
-          <p className="mt-3 text-xs text-destructive">{uploadError}</p>
+          <p className="text-xs text-destructive mt-2">{uploadError}</p>
         )}
       </div>
 
-      {/* Repos list */}
-      <div className="mt-8">
-        <h2 className="text-base font-semibold text-foreground mb-4">
-          Indexed Repositories ({repos.length})
-        </h2>
+      {/* Repository List Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <span>Indexed Codebases</span>
+            <span className="text-xs text-muted-foreground font-mono">({repos.length})</span>
+          </h2>
+          {repos.some((r) => r.status === "indexing") && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 font-mono animate-pulse">
+              <Clock className="size-3" />
+              <span>Indexing in progress…</span>
+            </span>
+          )}
+        </div>
 
         {repos.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card/50 p-8 text-center">
-            <p className="text-muted-foreground text-sm">No repositories yet. Upload a ZIP to get started.</p>
+          <div className="rounded-2xl border border-border/70 bg-card/30 p-12 text-center space-y-3">
+            <div className="size-12 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-center text-muted-foreground mx-auto">
+              <FolderGit2 className="size-6 text-muted-foreground/60" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-foreground">No repositories indexed yet</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Compress your Python repository root into a <code className="text-violet-400 font-mono">.zip</code> archive and drop it above to generate semantic AST chunks and vector embeddings.
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
             {repos.map((repo) => (
               <div
                 key={repo.repo_id}
-                className="group flex items-center gap-4 px-5 py-4 rounded-xl border border-border bg-card/50 hover:bg-card transition-all"
+                className="group relative rounded-xl border border-border/70 bg-card/40 hover:bg-card/70 hover:border-violet-500/40 p-5 transition-all shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5 mb-1">
-                    <p className="font-medium text-sm text-foreground truncate">{repo.name}</p>
-                    <StatusBadge status={repo.status} />
+                {/* Repo Info */}
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="size-10 rounded-lg bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0 mt-0.5">
+                    <FolderGit2 className="size-5" />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {repo.file_count} files · {repo.chunk_count_ast} AST chunks · {repo.chunk_count_fixed} fixed chunks
-                  </p>
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h3 className="font-semibold text-sm text-foreground truncate">
+                        {repo.name}
+                      </h3>
+                      <StatusBadge status={repo.status} />
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap font-mono">
+                      <span>{repo.file_count} files</span>
+                      <span>•</span>
+                      <span className="text-violet-400 font-medium">
+                        {repo.chunk_count_ast} AST chunks
+                      </span>
+                      <span>•</span>
+                      <span>{repo.chunk_count_fixed} fixed chunks</span>
+                      {repo.created_at && (
+                        <>
+                          <span>•</span>
+                          <span className="text-muted-foreground/70">
+                            {new Date(repo.created_at).toLocaleDateString()}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0">
                   {repo.status === "ready" && (
-                    <button
-                      id={`chat-btn-${repo.repo_id}`}
-                      onClick={() => router.push(`/chat/${repo.repo_id}`)}
-                      className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 transition-colors"
-                    >
-                      Chat
-                    </button>
+                    <>
+                      <Link
+                        id={`chat-btn-${repo.repo_id}`}
+                        href={`/chat/${repo.repo_id}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-all active:scale-[0.98] shadow-xs shadow-violet-600/30"
+                      >
+                        <MessageSquare className="size-3.5" />
+                        <span>Chat Q&A</span>
+                      </Link>
+
+                      <Link
+                        id={`eval-btn-${repo.repo_id}`}
+                        href="/eval"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/60 hover:bg-muted text-foreground text-xs font-medium border border-border/80 transition-all"
+                      >
+                        <BarChart2 className="size-3.5 text-violet-400" />
+                        <span>Evaluate</span>
+                      </Link>
+                    </>
                   )}
+
                   <button
                     id={`delete-btn-${repo.repo_id}`}
                     onClick={() => handleDelete(repo.repo_id)}
-                    className="px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                    title="Delete repository index"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                   >
-                    Delete
+                    <Trash2 className="size-3.5" />
                   </button>
                 </div>
               </div>

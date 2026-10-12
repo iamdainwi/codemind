@@ -54,6 +54,9 @@ class ASTChunker(BaseChunker):
         Parse source_code and return semantically meaningful chunks.
         Deterministic — same input always produces same output.
         """
+        if not source_code.strip():
+            return []
+
         chunks: List[Chunk] = []
 
         try:
