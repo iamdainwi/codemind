@@ -100,3 +100,4 @@ logs/
 
 paper.tex
 paper.pdf
+.checkpoint_benchmark.json

@@ -270,6 +270,18 @@ def wilson_ci(k: int, n: int, z: float = 1.96):
     return (max(0.0, centre - margin), min(1.0, centre + margin))
 
 
+def compute_cohen_d(x, y) -> float:
+    """Compute Cohen's d effect size for paired samples (dz = mean_diff / std_diff).
+
+    Reported alongside paired Student's t-test p-values in the paper and benchmark results.
+    """
+    diff = np.array(x) - np.array(y)
+    sd = np.std(diff, ddof=1)
+    if sd == 0.0:
+        return 0.0
+    return float(np.mean(diff) / sd)
+
+
 def parse_llm_response(raw_text: str):
     answer = raw_text.strip()
     confidence = 3  # default fallback if unparseable
@@ -471,14 +483,27 @@ def main():
     ttest_conf = stats.ttest_rel(df["ast_confidence"], df["fixed_confidence"])
     ttest_cme = stats.ttest_rel(df["ast_cme"], df["fixed_cme"])
 
+    # Effect size estimation: Paired Cohen's d (dz = mean_diff / std_diff)
+    cohen_d_p1 = compute_cohen_d(df["ast_p@1"], df["fixed_p@1"])
+    cohen_d_p5 = compute_cohen_d(df["ast_p@5"], df["fixed_p@5"])
+    cohen_d_p10 = compute_cohen_d(df["ast_p@10"], df["fixed_p@10"])
+    cohen_d_r5 = compute_cohen_d(df["ast_r@5"], df["fixed_r@5"])
+    cohen_d_mrr = compute_cohen_d(df["ast_mrr"], df["fixed_mrr"])
+    cohen_d_ndcg5 = compute_cohen_d(df["ast_ndcg@5"], df["fixed_ndcg@5"])
+    cohen_d_rouge1 = compute_cohen_d(df["ast_rouge1"], df["fixed_rouge1"])
+    cohen_d_rouge = compute_cohen_d(df["ast_rougeL"], df["fixed_rougeL"])
+    cohen_d_bound = compute_cohen_d(df["ast_boundary_acc"], df["fixed_boundary_acc"])
+    cohen_d_conf = compute_cohen_d(df["ast_confidence"], df["fixed_confidence"])
+    cohen_d_cme = compute_cohen_d(df["ast_cme"], df["fixed_cme"])
+
     logger.info("=== EMPIRICAL BENCHMARK SUMMARY ===")
-    logger.info("Mean P@5:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e)", df["ast_p@5"].mean(), df["fixed_p@5"].mean(), df["ast_p@5"].mean() - df["fixed_p@5"].mean(), ttest_p5.pvalue)
-    logger.info("Mean R@5:        AST=%.4f vs Fixed=%.4f (delta=+%.4f)", df["ast_r@5"].mean(), df["fixed_r@5"].mean(), df["ast_r@5"].mean() - df["fixed_r@5"].mean())
-    logger.info("Mean MRR:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e)", df["ast_mrr"].mean(), df["fixed_mrr"].mean(), df["ast_mrr"].mean() - df["fixed_mrr"].mean(), ttest_mrr.pvalue)
-    logger.info("Mean ROUGE-L:    AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e)", df["ast_rougeL"].mean(), df["fixed_rougeL"].mean(), df["ast_rougeL"].mean() - df["fixed_rougeL"].mean(), ttest_rouge.pvalue)
-    logger.info("Boundary Acc:    AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e)", df["ast_boundary_acc"].mean(), df["fixed_boundary_acc"].mean(), df["ast_boundary_acc"].mean() - df["fixed_boundary_acc"].mean(), ttest_bound.pvalue)
-    logger.info("Mean Confidence: AST=%.2f vs Fixed=%.2f (delta=+%.2f, p=%.4e)", df["ast_confidence"].mean(), df["fixed_confidence"].mean(), df["ast_confidence"].mean() - df["fixed_confidence"].mean(), ttest_conf.pvalue)
-    logger.info("CME Rate:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e)", df["ast_cme"].mean(), df["fixed_cme"].mean(), df["ast_cme"].mean() - df["fixed_cme"].mean(), ttest_cme.pvalue)
+    logger.info("Mean P@5:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e, d=%+.2f)", df["ast_p@5"].mean(), df["fixed_p@5"].mean(), df["ast_p@5"].mean() - df["fixed_p@5"].mean(), ttest_p5.pvalue, cohen_d_p5)
+    logger.info("Mean R@5:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, d=%+.2f)", df["ast_r@5"].mean(), df["fixed_r@5"].mean(), df["ast_r@5"].mean() - df["fixed_r@5"].mean(), cohen_d_r5)
+    logger.info("Mean MRR:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e, d=%+.2f)", df["ast_mrr"].mean(), df["fixed_mrr"].mean(), df["ast_mrr"].mean() - df["fixed_mrr"].mean(), ttest_mrr.pvalue, cohen_d_mrr)
+    logger.info("Mean ROUGE-L:    AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e, d=%+.2f)", df["ast_rougeL"].mean(), df["fixed_rougeL"].mean(), df["ast_rougeL"].mean() - df["fixed_rougeL"].mean(), ttest_rouge.pvalue, cohen_d_rouge)
+    logger.info("Boundary Acc:    AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e, d=%+.2f)", df["ast_boundary_acc"].mean(), df["fixed_boundary_acc"].mean(), df["ast_boundary_acc"].mean() - df["fixed_boundary_acc"].mean(), ttest_bound.pvalue, cohen_d_bound)
+    logger.info("Mean Confidence: AST=%.2f vs Fixed=%.2f (delta=+%.2f, p=%.4e, d=%+.2f)", df["ast_confidence"].mean(), df["fixed_confidence"].mean(), df["ast_confidence"].mean() - df["fixed_confidence"].mean(), ttest_conf.pvalue, cohen_d_conf)
+    logger.info("CME Rate:        AST=%.4f vs Fixed=%.4f (delta=+%.4f, p=%.4e, d=%+.2f)", df["ast_cme"].mean(), df["fixed_cme"].mean(), df["ast_cme"].mean() - df["fixed_cme"].mean(), ttest_cme.pvalue, cohen_d_cme)
 
     # -------------------------------------------------------------
     # PLOT 1: Grouped Bar Chart of Core Metrics
@@ -707,6 +732,17 @@ def main():
     df.to_csv(reports_dir / csv_filename, index=False)
 
     # -------------------------------------------------------------
+    # Compute Wilson 95% CIs for binary proportion metrics (N=len(df) queries)
+    # -------------------------------------------------------------
+    n_q = len(df)
+    ast_ba_ci = wilson_ci(int(round(float(df["ast_boundary_acc"].mean()) * n_q)), n_q)
+    fix_ba_ci = wilson_ci(int(round(float(df["fixed_boundary_acc"].mean()) * n_q)), n_q)
+    ast_cme_ci = wilson_ci(int(round(float(df["ast_cme"].mean()) * n_q)), n_q)
+    fix_cme_ci = wilson_ci(int(round(float(df["fixed_cme"].mean()) * n_q)), n_q)
+    ast_r5_ci = wilson_ci(int(round(float(df["ast_r@5"].mean()) * n_q)), n_q)
+    fix_r5_ci = wilson_ci(int(round(float(df["fixed_r@5"].mean()) * n_q)), n_q)
+
+    # -------------------------------------------------------------
     # Save Full JSON Results
     # -------------------------------------------------------------
     summary_results = {
@@ -762,12 +798,29 @@ def main():
                 "chunk_length_std": float(np.std(chunk_lengths_fixed)),
             },
             "statistical_significance": {
-                "precision_at_5": {"t_stat": float(ttest_p5.statistic), "p_value": float(ttest_p5.pvalue)},
-                "mrr": {"t_stat": float(ttest_mrr.statistic), "p_value": float(ttest_mrr.pvalue)},
-                "rouge_l": {"t_stat": float(ttest_rouge.statistic), "p_value": float(ttest_rouge.pvalue)},
-                "boundary_accuracy": {"t_stat": float(ttest_bound.statistic), "p_value": float(ttest_bound.pvalue)},
-                "confidence": {"t_stat": float(ttest_conf.statistic), "p_value": float(ttest_conf.pvalue)},
-                "cme": {"t_stat": float(ttest_cme.statistic), "p_value": float(ttest_cme.pvalue)},
+                "precision_at_1": {"t_stat": float(stats.ttest_rel(df["ast_p@1"], df["fixed_p@1"]).statistic), "p_value": float(stats.ttest_rel(df["ast_p@1"], df["fixed_p@1"]).pvalue), "cohen_d": float(cohen_d_p1)},
+                "precision_at_5": {"t_stat": float(ttest_p5.statistic), "p_value": float(ttest_p5.pvalue), "cohen_d": float(cohen_d_p5)},
+                "precision_at_10": {"t_stat": float(stats.ttest_rel(df["ast_p@10"], df["fixed_p@10"]).statistic), "p_value": float(stats.ttest_rel(df["ast_p@10"], df["fixed_p@10"]).pvalue), "cohen_d": float(cohen_d_p10)},
+                "recall_at_5": {"t_stat": float(stats.ttest_rel(df["ast_r@5"], df["fixed_r@5"]).statistic), "p_value": float(stats.ttest_rel(df["ast_r@5"], df["fixed_r@5"]).pvalue), "cohen_d": float(cohen_d_r5)},
+                "mrr": {"t_stat": float(ttest_mrr.statistic), "p_value": float(ttest_mrr.pvalue), "cohen_d": float(cohen_d_mrr)},
+                "ndcg_at_5": {"t_stat": float(stats.ttest_rel(df["ast_ndcg@5"], df["fixed_ndcg@5"]).statistic), "p_value": float(stats.ttest_rel(df["ast_ndcg@5"], df["fixed_ndcg@5"]).pvalue), "cohen_d": float(cohen_d_ndcg5)},
+                "rouge_1": {"t_stat": float(stats.ttest_rel(df["ast_rouge1"], df["fixed_rouge1"]).statistic), "p_value": float(stats.ttest_rel(df["ast_rouge1"], df["fixed_rouge1"]).pvalue), "cohen_d": float(cohen_d_rouge1)},
+                "rouge_l": {"t_stat": float(ttest_rouge.statistic), "p_value": float(ttest_rouge.pvalue), "cohen_d": float(cohen_d_rouge)},
+                "boundary_accuracy": {"t_stat": float(ttest_bound.statistic), "p_value": float(ttest_bound.pvalue), "cohen_d": float(cohen_d_bound)},
+                "confidence": {"t_stat": float(ttest_conf.statistic), "p_value": float(ttest_conf.pvalue), "cohen_d": float(cohen_d_conf)},
+                "cme": {"t_stat": float(ttest_cme.statistic), "p_value": float(ttest_cme.pvalue), "cohen_d": float(cohen_d_cme)},
+            },
+            "confidence_intervals_95": {
+                "ast": {
+                    "boundary_accuracy_wilson": [float(ast_ba_ci[0]), float(ast_ba_ci[1])],
+                    "cme_rate_wilson": [float(ast_cme_ci[0]), float(ast_cme_ci[1])],
+                    "recall_at_5_wilson": [float(ast_r5_ci[0]), float(ast_r5_ci[1])],
+                },
+                "fixed": {
+                    "boundary_accuracy_wilson": [float(fix_ba_ci[0]), float(fix_ba_ci[1])],
+                    "cme_rate_wilson": [float(fix_cme_ci[0]), float(fix_cme_ci[1])],
+                    "recall_at_5_wilson": [float(fix_r5_ci[0]), float(fix_r5_ci[1])],
+                }
             }
         },
         "per_query_records": records
@@ -786,15 +839,6 @@ def main():
     fix_m = summary_results["aggregate_metrics"]["fixed"]
     stat_m = summary_results["aggregate_metrics"]["statistical_significance"]
 
-    # Compute Wilson 95% CIs for binary proportion metrics (N=len(df) queries)
-    n_q = len(df)
-    ast_ba_ci = wilson_ci(int(round(ast_m["boundary_accuracy"] * n_q)), n_q)
-    fix_ba_ci = wilson_ci(int(round(fix_m["boundary_accuracy"] * n_q)), n_q)
-    ast_cme_ci = wilson_ci(int(round(ast_m["cme_rate"] * n_q)), n_q)
-    fix_cme_ci = wilson_ci(int(round(fix_m["cme_rate"] * n_q)), n_q)
-    ast_r5_ci = wilson_ci(int(round(ast_m["recall_at_5"] * n_q)), n_q)
-    fix_r5_ci = wilson_ci(int(round(fix_m["recall_at_5"] * n_q)), n_q)
-
     report_content = f"""# Empirical Benchmark Evaluation Report
 **Project Title**: CodeMind: Generation Framework for Codebase Question Answering
 **Evaluation Objective**: Empirical comparative evaluation of AST-Aware chunking vs. Fixed-Window baseline chunking.
@@ -807,30 +851,30 @@ def main():
 This benchmark rigorously evaluates whether structuring the code retrieval pipeline around syntax semantics (via Abstract Syntax Tree parsing) improves retrieval relevance, calibration, and downstream answer synthesis compared to conventional fixed-window character chunking.
 
 ### Key Empirical Findings:
-1. **Precision@5 Superiority**: AST chunking achieves **{ast_m['precision_at_5']*100:.1f}%** Precision@5 compared to **{fix_m['precision_at_5']*100:.1f}%** for Fixed-Window chunking ($+{(ast_m['precision_at_5']-fix_m['precision_at_5'])*100:.1f}\\%$ relative improvement, $p = {stat_m['precision_at_5']['p_value']:.4e}$).
-2. **Mean Reciprocal Rank (MRR)**: AST chunks place the first relevant code unit significantly higher in the ranking list (**{ast_m['mrr']:.3f}** vs. **{fix_m['mrr']:.3f}**, $p = {stat_m['mrr']['p_value']:.4e}$).
-3. **Boundary Integrity**: AST chunks maintain **{ast_m['boundary_accuracy']*100:.1f}%** syntactic boundary preservation (0 mid-statement or function truncations), whereas Fixed-Window chunking achieves only **{fix_m['boundary_accuracy']*100:.1f}%**, frequently cleaving functions across arbitrary token offsets ($p = {stat_m['boundary_accuracy']['p_value']:.4e}$).
-4. **Downstream Answer Synthesis (ROUGE-L)**: When context is fed to the local LLM (`gemma4:e2b-mlx`), AST-conditioned prompts achieve an average ROUGE-L F1 score of **{ast_m['rouge_l']:.3f}** versus **{fix_m['rouge_l']:.3f}** for Fixed-window prompts ($+{(ast_m['rouge_l']-fix_m['rouge_l'])*100:.1f}\\%$).
-5. **Model Calibration & Confidence-Missed Error (CME)**: AST chunking achieves a mean LLM confidence of **{ast_m['confidence_mean']:.2f} / 5.0** and dramatically suppresses the Confidence-Missed Error rate to **{ast_m['cme_rate']*100:.1f}%** compared to **{fix_m['cme_rate']*100:.1f}%** for Fixed-Window chunking ($p = {stat_m['cme']['p_value']:.4e}$).
+1. **Precision@5 Superiority**: AST chunking achieves **{ast_m['precision_at_5']*100:.1f}%** Precision@5 compared to **{fix_m['precision_at_5']*100:.1f}%** for Fixed-Window chunking ($+{(ast_m['precision_at_5']-fix_m['precision_at_5'])*100:.1f}\\%$ relative improvement, $p = {stat_m['precision_at_5']['p_value']:.4e}$, Cohen's $d = {stat_m['precision_at_5']['cohen_d']:+.2f}$).
+2. **Mean Reciprocal Rank (MRR)**: The fixed-window baseline retains a marginal MRR advantage over AST chunking (**{fix_m['mrr']:.3f}** vs. **{ast_m['mrr']:.3f}**), though the difference is not statistically significant ($p = {stat_m['mrr']['p_value']:.4e}$, Cohen's $d = {stat_m['mrr']['cohen_d']:+.2f}$). This reflects finer chunk granularity placing partial hits at rank 1 even when the target symbol is incomplete.
+3. **Boundary Integrity**: AST chunks maintain **{ast_m['boundary_accuracy']*100:.1f}%** syntactic boundary preservation (0 mid-statement or function truncations; 95% Wilson CI: [{ast_ba_ci[0]*100:.1f}%, {ast_ba_ci[1]*100:.1f}%]), whereas Fixed-Window chunking achieves only **{fix_m['boundary_accuracy']*100:.1f}%** (95% Wilson CI: [{fix_ba_ci[0]*100:.1f}%, {fix_ba_ci[1]*100:.1f}%]), frequently cleaving functions across arbitrary token offsets ($p = {stat_m['boundary_accuracy']['p_value']:.4e}$, Cohen's $d = {stat_m['boundary_accuracy']['cohen_d']:+.2f}$).
+4. **Downstream Answer Synthesis (ROUGE-L)**: When context is fed to the local LLM (`gemma4:e2b-mlx`), AST-conditioned prompts achieve an average ROUGE-L F1 score of **{ast_m['rouge_l']:.3f}** versus **{fix_m['rouge_l']:.3f}** for Fixed-window prompts ($+{(ast_m['rouge_l']-fix_m['rouge_l'])*100:.1f}\\%$, Cohen's $d = {stat_m['rouge_l']['cohen_d']:+.2f}$).
+5. **Model Calibration & Confidence-Missed Error (CME)**: AST chunking achieves a mean LLM confidence of **{ast_m['confidence_mean']:.2f} / 5.0** and dramatically suppresses the Confidence-Missed Error rate to **{ast_m['cme_rate']*100:.1f}%** (95% Wilson CI: [{ast_cme_ci[0]*100:.1f}%, {ast_cme_ci[1]*100:.1f}%]) compared to **{fix_m['cme_rate']*100:.1f}%** for Fixed-Window chunking (95% Wilson CI: [{fix_cme_ci[0]*100:.1f}%, {fix_cme_ci[1]*100:.1f}%]; $p = {stat_m['cme']['p_value']:.4e}$, Cohen's $d = {stat_m['cme']['cohen_d']:+.2f}$).
 
 ---
 
 ## 2. Quantitative Results Matrix
 
-| Metric | AST-Aware Chunker (Ours) | Fixed-Window Baseline | Absolute Delta ($\\Delta$) | Relative Gain | $p$-value ($t$-test) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Precision@1** | **{ast_m['precision_at_1']*100:.1f}%** | {fix_m['precision_at_1']*100:.1f}% | {(ast_m['precision_at_1']-fix_m['precision_at_1'])*100:+.1f}% | {((ast_m['precision_at_1']-fix_m['precision_at_1'])/max(fix_m['precision_at_1'],1e-5))*100:+.1f}% | - |
-| **Precision@5** | **{ast_m['precision_at_5']*100:.1f}%** | {fix_m['precision_at_5']*100:.1f}% | {(ast_m['precision_at_5']-fix_m['precision_at_5'])*100:+.1f}% | {((ast_m['precision_at_5']-fix_m['precision_at_5'])/max(fix_m['precision_at_5'],1e-5))*100:+.1f}% | **{stat_m['precision_at_5']['p_value']:.4e}** |
-| **Recall@5** | **{ast_m['recall_at_5']*100:.1f}%** | {fix_m['recall_at_5']*100:.1f}% | {(ast_m['recall_at_5']-fix_m['recall_at_5'])*100:+.1f}% | {((ast_m['recall_at_5']-fix_m['recall_at_5'])/max(fix_m['recall_at_5'],1e-5))*100:+.1f}% | - |
-| **Mean Reciprocal Rank (MRR)** | **{ast_m['mrr']:.4f}** | {fix_m['mrr']:.4f} | {(ast_m['mrr']-fix_m['mrr']):+.4f} | {((ast_m['mrr']-fix_m['mrr'])/max(fix_m['mrr'],1e-5))*100:+.1f}% | **{stat_m['mrr']['p_value']:.4e}** |
-| **NDCG@5** | **{ast_m['ndcg_at_5']:.4f}** | {fix_m['ndcg_at_5']:.4f} | {(ast_m['ndcg_at_5']-fix_m['ndcg_at_5']):+.4f} | {((ast_m['ndcg_at_5']-fix_m['ndcg_at_5'])/max(fix_m['ndcg_at_5'],1e-5))*100:+.1f}% | - |
-| **ROUGE-1 F1** | **{ast_m['rouge_1']:.4f}** | {fix_m['rouge_1']:.4f} | {(ast_m['rouge_1']-fix_m['rouge_1']):+.4f} | {((ast_m['rouge_1']-fix_m['rouge_1'])/max(fix_m['rouge_1'],1e-5))*100:+.1f}% | - |
-| **ROUGE-L F1** | **{ast_m['rouge_l']:.4f}** | {fix_m['rouge_l']:.4f} | {(ast_m['rouge_l']-fix_m['rouge_l']):+.4f} | {((ast_m['rouge_l']-fix_m['rouge_l'])/max(fix_m['rouge_l'],1e-5))*100:+.1f}% | **{stat_m['rouge_l']['p_value']:.4e}** |
-| **Boundary Accuracy** | **{ast_m['boundary_accuracy']*100:.1f}%** | {fix_m['boundary_accuracy']*100:.1f}% | {(ast_m['boundary_accuracy']-fix_m['boundary_accuracy'])*100:+.1f}% | - | **{stat_m['boundary_accuracy']['p_value']:.4e}** |
-| **Mean LLM Confidence (1–5)** | **{ast_m['confidence_mean']:.2f}** | {fix_m['confidence_mean']:.2f} | {(ast_m['confidence_mean']-fix_m['confidence_mean']):+.2f} | {((ast_m['confidence_mean']-fix_m['confidence_mean'])/max(fix_m['confidence_mean'],1e-5))*100:+.1f}% | **{stat_m['confidence']['p_value']:.4e}** |
-| **Confidence-Missed Error (CME)** | **{ast_m['cme_rate']*100:.1f}%** | {fix_m['cme_rate']*100:.1f}% | {(ast_m['cme_rate']-fix_m['cme_rate'])*100:+.1f}% | - | **{stat_m['cme']['p_value']:.4e}** |
-| **Chunk Size Mean (Chars)** | {ast_m['chunk_length_mean']:.1f} | {fix_m['chunk_length_mean']:.1f} | - | - | - |
-| **Chunk Size Std (Chars)** | {ast_m['chunk_length_std']:.1f} | {fix_m['chunk_length_std']:.1f} | - | - | - |
+| Metric | AST-Aware Chunker (Ours) | Fixed-Window Baseline | Absolute Delta ($\\Delta$) | Relative Gain | Cohen's $d$ | $p$-value ($t$-test) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Precision@1** | {ast_m['precision_at_1']*100:.1f}% | **{fix_m['precision_at_1']*100:.1f}%** | {(ast_m['precision_at_1']-fix_m['precision_at_1'])*100:+.1f}% | {((ast_m['precision_at_1']-fix_m['precision_at_1'])/max(fix_m['precision_at_1'],1e-5))*100:+.1f}% | {stat_m['precision_at_1']['cohen_d']:+.2f} | - |
+| **Precision@5** | **{ast_m['precision_at_5']*100:.1f}%** | {fix_m['precision_at_5']*100:.1f}% | {(ast_m['precision_at_5']-fix_m['precision_at_5'])*100:+.1f}% | {((ast_m['precision_at_5']-fix_m['precision_at_5'])/max(fix_m['precision_at_5'],1e-5))*100:+.1f}% | {stat_m['precision_at_5']['cohen_d']:+.2f} | **{stat_m['precision_at_5']['p_value']:.4e}** |
+| **Recall@5** | **{ast_m['recall_at_5']*100:.1f}%** [{ast_r5_ci[0]*100:.1f}%, {ast_r5_ci[1]*100:.1f}%] | **{fix_m['recall_at_5']*100:.1f}%** [{fix_r5_ci[0]*100:.1f}%, {fix_r5_ci[1]*100:.1f}%] | {(ast_m['recall_at_5']-fix_m['recall_at_5'])*100:+.1f}% | {((ast_m['recall_at_5']-fix_m['recall_at_5'])/max(fix_m['recall_at_5'],1e-5))*100:+.1f}% | {stat_m['recall_at_5']['cohen_d']:+.2f} | - |
+| **Mean Reciprocal Rank (MRR)** | {ast_m['mrr']:.4f} | **{fix_m['mrr']:.4f}** | {(ast_m['mrr']-fix_m['mrr']):+.4f} | {((ast_m['mrr']-fix_m['mrr'])/max(fix_m['mrr'],1e-5))*100:+.1f}% | {stat_m['mrr']['cohen_d']:+.2f} | {stat_m['mrr']['p_value']:.4e} |
+| **NDCG@5** | {ast_m['ndcg_at_5']:.4f} | **{fix_m['ndcg_at_5']:.4f}** | {(ast_m['ndcg_at_5']-fix_m['ndcg_at_5']):+.4f} | {((ast_m['ndcg_at_5']-fix_m['ndcg_at_5'])/max(fix_m['ndcg_at_5'],1e-5))*100:+.1f}% | {stat_m['ndcg_at_5']['cohen_d']:+.2f} | - |
+| **ROUGE-1 F1** | **{ast_m['rouge_1']:.4f}** | {fix_m['rouge_1']:.4f} | {(ast_m['rouge_1']-fix_m['rouge_1']):+.4f} | {((ast_m['rouge_1']-fix_m['rouge_1'])/max(fix_m['rouge_1'],1e-5))*100:+.1f}% | {stat_m['rouge_1']['cohen_d']:+.2f} | - |
+| **ROUGE-L F1** | **{ast_m['rouge_l']:.4f}** | {fix_m['rouge_l']:.4f} | {(ast_m['rouge_l']-fix_m['rouge_l']):+.4f} | {((ast_m['rouge_l']-fix_m['rouge_l'])/max(fix_m['rouge_l'],1e-5))*100:+.1f}% | {stat_m['rouge_l']['cohen_d']:+.2f} | {stat_m['rouge_l']['p_value']:.4e} |
+| **Boundary Accuracy** | **{ast_m['boundary_accuracy']*100:.1f}%** [{ast_ba_ci[0]*100:.1f}%, {ast_ba_ci[1]*100:.1f}%] | {fix_m['boundary_accuracy']*100:.1f}% [{fix_ba_ci[0]*100:.1f}%, {fix_ba_ci[1]*100:.1f}%] | {(ast_m['boundary_accuracy']-fix_m['boundary_accuracy'])*100:+.1f}% | - | {stat_m['boundary_accuracy']['cohen_d']:+.2f} | **{stat_m['boundary_accuracy']['p_value']:.4e}** |
+| **Mean LLM Confidence (1–5)** | {ast_m['confidence_mean']:.2f} | **{fix_m['confidence_mean']:.2f}** | {(ast_m['confidence_mean']-fix_m['confidence_mean']):+.2f} | {((ast_m['confidence_mean']-fix_m['confidence_mean'])/max(fix_m['confidence_mean'],1e-5))*100:+.1f}% | {stat_m['confidence']['cohen_d']:+.2f} | {stat_m['confidence']['p_value']:.4e} |
+| **Confidence-Missed Error (CME)** | **{ast_m['cme_rate']*100:.1f}%** [{ast_cme_ci[0]*100:.1f}%, {ast_cme_ci[1]*100:.1f}%] | {fix_m['cme_rate']*100:.1f}% [{fix_cme_ci[0]*100:.1f}%, {fix_cme_ci[1]*100:.1f}%] | {(ast_m['cme_rate']-fix_m['cme_rate'])*100:+.1f}% | - | {stat_m['cme']['cohen_d']:+.2f} | **{stat_m['cme']['p_value']:.4e}** |
+| **Chunk Size Mean (Chars)** | {ast_m['chunk_length_mean']:.1f} | {fix_m['chunk_length_mean']:.1f} | - | - | - | - |
+| **Chunk Size Std (Chars)** | {ast_m['chunk_length_std']:.1f} | {fix_m['chunk_length_std']:.1f} | - | - | - | - |
 
 ---
 
@@ -843,8 +887,8 @@ We formally evaluate this phenomenon via the **Confidence-Missed Error (CME)** r
 $$\\text{{CME Rate}} = \\frac{{1}}{{N}} \\sum_{{i=1}}^N \\mathbb{{I}}(\\text{{Confidence}}_i \\ge 4 \\land P@5_i \\le 0.20)$$
 
 ### Empirical Observations:
-- **Calibrated Uncertainty**: AST chunking confines high-confidence answers to contexts where relevant syntactic nodes were successfully retrieved, yielding a CME rate of **{ast_m['cme_rate']*100:.1f}%**.
-- **Hallucinatory Overconfidence in Fixed Baselines**: Fixed-window chunking exhibits a CME rate of **{fix_m['cme_rate']*100:.1f}%** ($p = {stat_m['cme']['p_value']:.4e}$). Because arbitrary character slices cleave function signatures and docstrings mid-sentence, the language model is regularly baited into hallucinatory completions while remaining deceptively overconfident.
+- **Calibrated Uncertainty**: AST chunking confines high-confidence answers to contexts where relevant syntactic nodes were successfully retrieved, yielding a CME rate of **{ast_m['cme_rate']*100:.1f}%** (95% Wilson CI: [{ast_cme_ci[0]*100:.1f}%, {ast_cme_ci[1]*100:.1f}%]).
+- **Hallucinatory Overconfidence in Fixed Baselines**: Fixed-window chunking exhibits a CME rate of **{fix_m['cme_rate']*100:.1f}%** (95% Wilson CI: [{fix_cme_ci[0]*100:.1f}%, {fix_cme_ci[1]*100:.1f}%]; $p = {stat_m['cme']['p_value']:.4e}$, Cohen's $d = {stat_m['cme']['cohen_d']:+.2f}$). Because arbitrary character slices cleave function signatures and docstrings mid-sentence, the language model is regularly baited into hallucinatory completions while remaining deceptively overconfident.
 - **Syntactic Completeness Mitigates Error**: Preserving AST boundaries ensures that when the generator states high confidence ($5/5$), the answer is grounded in an intact, compilable semantic unit.
 
 ---
@@ -856,19 +900,19 @@ $$\\text{{CME Rate}} = \\frac{{1}}{{N}} \\sum_{{i=1}}^N \\mathbb{{I}}(\\text{{Co
 \\centering
 \\caption{{Empirical comparison between AST-Aware Chunking and Fixed-Window Baseline Chunking across retrieval fidelity, generation quality, and model calibration ($N={len(df)}$ queries).}}
 \\label{{tab:benchmark_results}}
-\\begin{{tabular}}{{lccccc}}
+\\begin{{tabular}}{{lcccccc}}
 \\toprule
-\\textbf{{Metric}} & \\textbf{{AST-Aware (Ours)}} & \\textbf{{Fixed Baseline}} & \\textbf{{$\\Delta$}} & \\textbf{{Rel. Gain}} & \\textbf{{$p$-value}} \\\\
+\\textbf{{Metric}} & \\textbf{{AST-Aware (Ours)}} & \\textbf{{Fixed Baseline}} & \\textbf{{$\\Delta$}} & \\textbf{{Rel. Gain}} & \\textbf{{Cohen's $d$}} & \\textbf{{$p$-value}} \\\\
 \\midrule
-Precision@1 & \\textbf{{{ast_m['precision_at_1']:.3f}}} & {fix_m['precision_at_1']:.3f} & {(ast_m['precision_at_1']-fix_m['precision_at_1']):+.3f} & {((ast_m['precision_at_1']-fix_m['precision_at_1'])/max(fix_m['precision_at_1'],1e-5))*100:+.1f}\\% & -- \\\\
-Precision@5 & \\textbf{{{ast_m['precision_at_5']:.3f}}} & {fix_m['precision_at_5']:.3f} & {(ast_m['precision_at_5']-fix_m['precision_at_5']):+.3f} & {((ast_m['precision_at_5']-fix_m['precision_at_5'])/max(fix_m['precision_at_5'],1e-5))*100:+.1f}\\% & {stat_m['precision_at_5']['p_value']:.3e} \\\\
-Recall@5 & \\textbf{{{ast_m['recall_at_5']:.3f}}} & {fix_m['recall_at_5']:.3f} & {(ast_m['recall_at_5']-fix_m['recall_at_5']):+.3f} & {((ast_m['recall_at_5']-fix_m['recall_at_5'])/max(fix_m['recall_at_5'],1e-5))*100:+.1f}\\% & -- \\\\
-Mean Reciprocal Rank (MRR) & \\textbf{{{ast_m['mrr']:.3f}}} & {fix_m['mrr']:.3f} & {(ast_m['mrr']-fix_m['mrr']):+.3f} & {((ast_m['mrr']-fix_m['mrr'])/max(fix_m['mrr'],1e-5))*100:+.1f}\\% & {stat_m['mrr']['p_value']:.3e} \\\\
-NDCG@5 & \\textbf{{{ast_m['ndcg_at_5']:.3f}}} & {fix_m['ndcg_at_5']:.3f} & {(ast_m['ndcg_at_5']-fix_m['ndcg_at_5']):+.3f} & {((ast_m['ndcg_at_5']-fix_m['ndcg_at_5'])/max(fix_m['ndcg_at_5'],1e-5))*100:+.1f}\\% & -- \\\\
-ROUGE-L F1 & \\textbf{{{ast_m['rouge_l']:.3f}}} & {fix_m['rouge_l']:.3f} & {(ast_m['rouge_l']-fix_m['rouge_l']):+.3f} & {((ast_m['rouge_l']-fix_m['rouge_l'])/max(fix_m['rouge_l'],1e-5))*100:+.1f}\\% & {stat_m['rouge_l']['p_value']:.3e} \\\\
-Boundary Accuracy & \\textbf{{{ast_m['boundary_accuracy']:.3f}}} & {fix_m['boundary_accuracy']:.3f} & {(ast_m['boundary_accuracy']-fix_m['boundary_accuracy']):+.3f} & {((ast_m['boundary_accuracy']-fix_m['boundary_accuracy'])/max(fix_m['boundary_accuracy'],1e-5))*100:+.1f}\\% & {stat_m['boundary_accuracy']['p_value']:.3e} \\\\
-Mean LLM Confidence (1--5) & \\textbf{{{ast_m['confidence_mean']:.2f}}} & {fix_m['confidence_mean']:.2f} & {(ast_m['confidence_mean']-fix_m['confidence_mean']):+.2f} & {((ast_m['confidence_mean']-fix_m['confidence_mean'])/max(fix_m['confidence_mean'],1e-5))*100:+.1f}\\% & {stat_m['confidence']['p_value']:.3e} \\\\
-Confidence-Missed Error (CME) & \\textbf{{{ast_m['cme_rate']*100:.1f}\\%}} & {fix_m['cme_rate']*100:.1f}\\% & {(ast_m['cme_rate']-fix_m['cme_rate'])*100:+.1f}\\% & {((ast_m['cme_rate']-fix_m['cme_rate'])/max(fix_m['cme_rate'],1e-5))*100:+.1f}\\% & {stat_m['cme']['p_value']:.3e} \\\\
+Precision@1 & {ast_m['precision_at_1']:.3f} & \\textbf{{{fix_m['precision_at_1']:.3f}}} & {(ast_m['precision_at_1']-fix_m['precision_at_1']):+.3f} & {((ast_m['precision_at_1']-fix_m['precision_at_1'])/max(fix_m['precision_at_1'],1e-5))*100:+.1f}\\% & {stat_m['precision_at_1']['cohen_d']:+.2f} & -- \\\\
+Precision@5 & \\textbf{{{ast_m['precision_at_5']:.3f}}} & {fix_m['precision_at_5']:.3f} & {(ast_m['precision_at_5']-fix_m['precision_at_5']):+.3f} & {((ast_m['precision_at_5']-fix_m['precision_at_5'])/max(fix_m['precision_at_5'],1e-5))*100:+.1f}\\% & {stat_m['precision_at_5']['cohen_d']:+.2f} & {stat_m['precision_at_5']['p_value']:.3e} \\\\
+Recall@5 & \\textbf{{{ast_m['recall_at_5']:.3f}}} & \\textbf{{{fix_m['recall_at_5']:.3f}}} & {(ast_m['recall_at_5']-fix_m['recall_at_5']):+.3f} & {((ast_m['recall_at_5']-fix_m['recall_at_5'])/max(fix_m['recall_at_5'],1e-5))*100:+.1f}\\% & {stat_m['recall_at_5']['cohen_d']:+.2f} & -- \\\\
+Mean Reciprocal Rank (MRR) & {ast_m['mrr']:.3f} & \\textbf{{{fix_m['mrr']:.3f}}} & {(ast_m['mrr']-fix_m['mrr']):+.3f} & {((ast_m['mrr']-fix_m['mrr'])/max(fix_m['mrr'],1e-5))*100:+.1f}\\% & {stat_m['mrr']['cohen_d']:+.2f} & {stat_m['mrr']['p_value']:.3e} \\\\
+NDCG@5 & {ast_m['ndcg_at_5']:.3f} & \\textbf{{{fix_m['ndcg_at_5']:.3f}}} & {(ast_m['ndcg_at_5']-fix_m['ndcg_at_5']):+.3f} & {((ast_m['ndcg_at_5']-fix_m['ndcg_at_5'])/max(fix_m['ndcg_at_5'],1e-5))*100:+.1f}\\% & {stat_m['ndcg_at_5']['cohen_d']:+.2f} & -- \\\\
+ROUGE-L F1 & \\textbf{{{ast_m['rouge_l']:.3f}}} & {fix_m['rouge_l']:.3f} & {(ast_m['rouge_l']-fix_m['rouge_l']):+.3f} & {((ast_m['rouge_l']-fix_m['rouge_l'])/max(fix_m['rouge_l'],1e-5))*100:+.1f}\\% & {stat_m['rouge_l']['cohen_d']:+.2f} & {stat_m['rouge_l']['p_value']:.3e} \\\\
+Boundary Accuracy & \\textbf{{{ast_m['boundary_accuracy']:.3f}}} & {fix_m['boundary_accuracy']:.3f} & {(ast_m['boundary_accuracy']-fix_m['boundary_accuracy']):+.3f} & {((ast_m['boundary_accuracy']-fix_m['boundary_accuracy'])/max(fix_m['boundary_accuracy'],1e-5))*100:+.1f}\\% & {stat_m['boundary_accuracy']['cohen_d']:+.2f} & {stat_m['boundary_accuracy']['p_value']:.3e} \\\\
+Mean LLM Confidence (1--5) & {ast_m['confidence_mean']:.2f} & \\textbf{{{fix_m['confidence_mean']:.2f}}} & {(ast_m['confidence_mean']-fix_m['confidence_mean']):+.2f} & {((ast_m['confidence_mean']-fix_m['confidence_mean'])/max(fix_m['confidence_mean'],1e-5))*100:+.1f}\\% & {stat_m['confidence']['cohen_d']:+.2f} & {stat_m['confidence']['p_value']:.3e} \\\\
+Confidence-Missed Error (CME) & \\textbf{{{ast_m['cme_rate']*100:.1f}\\%}} & {fix_m['cme_rate']*100:.1f}\\% & {(ast_m['cme_rate']-fix_m['cme_rate'])*100:+.1f}\\% & {((ast_m['cme_rate']-fix_m['cme_rate'])/max(fix_m['cme_rate'],1e-5))*100:+.1f}\\% & {stat_m['cme']['cohen_d']:+.2f} & {stat_m['cme']['p_value']:.3e} \\\\
 \\bottomrule
 \\end{{tabular}}
 \\end{{table}}
